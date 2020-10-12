@@ -1,0 +1,10 @@
+# Created by .ignore support plugin (hsz.mobi)
+move_code_to_pi
+pi_configurator
+.idea
+base_bot/base_bot/2018-11-13-raspbian-stretch.img
+base_bot/base_bot/base_bot_config.json
+*__pycache__*
+*.img
+ubuntu-20.04.1-preinstalled-server-arm64+raspi.img
+venv
