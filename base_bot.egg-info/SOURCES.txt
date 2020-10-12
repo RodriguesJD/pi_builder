@@ -1,0 +1,15 @@
+README.md
+setup.py
+base_bot/__init__.py
+base_bot.egg-info/PKG-INFO
+base_bot.egg-info/SOURCES.txt
+base_bot.egg-info/dependency_links.txt
+base_bot.egg-info/requires.txt
+base_bot.egg-info/top_level.txt
+base_bot/base_bot/__init__.py
+base_bot/base_bot/base_bot.py
+base_bot/base_bot/core/__init__.py
+base_bot/base_bot/core/macos_os_type.py
+base_bot/base_bot/core/raspbian_os_type.py
+base_bot/tests/__init__.py
+base_bot/tests/test_base_bot.py
