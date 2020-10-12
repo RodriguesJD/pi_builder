@@ -10,3 +10,4 @@ ubuntu-20.04.1-preinstalled-server-arm64+raspi.img
 venv
 base_bot.egg-info
 *.log
+.DS_Store
