@@ -1,6 +1,25 @@
 import os
 import subprocess
 from pathlib import Path
+import logging
+
+import logging
+
+# Create a custom logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+file_handler = logging.FileHandler('base_bot.log')
+file_handler.setLevel(logging.DEBUG)
+file_handler.setFormatter(formatter)
+
+stream_handler = logging.StreamHandler()
+stream_handler.setFormatter(formatter)
+
+logger.addHandler(file_handler)
+logger.addHandler(stream_handler)
 
 
 class MacosBaseBot:
@@ -90,6 +109,7 @@ class MacosBaseBot:
             writer.write(network_configuration)
 
     def assistant(self):
+        logger.debug("MacosBaseBot.assistant")
         if not self.disk_number():
             raise Exception("Cant find the sd card's mounted disk number")
 
