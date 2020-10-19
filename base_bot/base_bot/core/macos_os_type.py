@@ -3,7 +3,8 @@ import subprocess
 from pathlib import Path
 import logging
 
-import logging
+import yaml
+
 
 # Create a custom logger
 logger = logging.getLogger(__name__)
@@ -28,90 +29,131 @@ class MacosBaseBot:
     def __init__(self, sd_card_name="RASPBIAN"):
         self.sd_card_name = sd_card_name
 
-    def disk_number(self):
+        self.disk_number = False
+        self.disk_path = False
+
+    def gather_disk_number(self):
         """Find the most likey place the sd card is mounted.
 
         Returns
         -------
 
         """
+        logger.debug("MacosBaseBot.gather_disk_number")
+
+        # create subprocess to run terminal command
         diskutil_list = subprocess.Popen("diskutil list", shell=True, stdout=subprocess.PIPE)
         outp = diskutil_list.stdout
         external_disks = []
+
         for line in outp:
             external_disk = "(external, physical)"
+
+            # Convert byte string to ascii <- I think its ascii
             decoded_line = line.decode()
+
             if external_disk in decoded_line:
                 disk_num = decoded_line.split(external_disk)[0].split("disk")[1]
                 if int(disk_num):
                     external_disks.append(disk_num.replace(" ", ""))
 
         if not external_disks:
-            raise Exception("Can't find usb drive in diskutil")
+            logger.error("Can't find usb drive in diskutil, MacosBaseBot.disk_number")
+            return False
+        elif len(external_disks) > 1:
+            raise Exception("There is more than 1 external disk. Fix this issue.")
+        else:
+            self.disk_number = external_disks[0]
+            return external_disks[0]
 
-        return external_disks[0]
+    def gather_disk_path(self):
+        logger.debug("MacosBaseBot.gather_disk_path")
+        path_to_disk = f"/dev/disk{self.disk_number}"
+        self.disk_path = path_to_disk
 
-    def disk_path(self):
-        disk_path = f"/dev/disk{self.disk_number()}"
-
-        return disk_path
+        return path_to_disk
 
     def erase_disk(self):
-        print("Wipe sd card and format to MS-DOS (FAT16)\n")
-        subprocess.Popen(["diskutil eraseDisk ExFAT {} MBRFormat {}".format(self.sd_card_name, self.disk_path())],
+        logger.debug("MacosBaseBot.erase_disk")
+        subprocess.Popen([f"diskutil eraseDisk ExFAT {self.sd_card_name} MBRFormat {self.disk_path}"],
                          shell=True, stdout=subprocess.PIPE).communicate()
 
     def unmount_disk(self):
-        subprocess.Popen([f"diskutil unmountDisk {self.disk_path()}"],
+        logger.debug("MacosBaseBot.unmount_disk")
+        subprocess.Popen([f"diskutil unmountDisk {self.disk_path}"],
                          shell=True, stdout=subprocess.PIPE).communicate()
 
     def install_os(self):
-        pi_img = []
+        logger.debug("MacosBaseBot.install_os")
+        pi_img = False
         for file in os.listdir(os.getcwd()):
             if "ubuntu" in file and ".img" in file:
-                pi_img.append(file)
+                pi_img = file
 
         if not pi_img:
             raise Exception("Cant find the pi img. "
                             "This usually means you're not in the same directory as the python file.")
 
-        file = pi_img[0]
-        path_to_image = Path(os.getcwd(), file)
-        subprocess.Popen([f"sudo dd bs=1m if={path_to_image} of=/dev/rdisk{self.disk_path()} conv=sync"],
+        path_to_image = Path(os.getcwd(), pi_img)
+
+        subprocess.Popen([f"sudo dd bs=1m if={path_to_image} of={self.disk_path} conv=sync"],
+                         shell=True, stdout=subprocess.PIPE).communicate()
+
+    def mount_disk(self):
+        logger.debug("MacosBaseBot.mount_disk")
+        subprocess.Popen([f"diskutil mountDisk {self.disk_path}"],
                          shell=True, stdout=subprocess.PIPE).communicate()
 
     def enable_ssh(self):
-        ssh_path = Path("/Volumes/boot/ssh")
+        # TODO the ssh_path is wrong
+        logger.debug("MacosBaseBot.enable_ssh")
+        ssh_path = Path("/Volumes/system-boot/ssh")
         if not os.path.isfile(ssh_path):
-            subprocess.Popen(["touch {}".format(ssh_path)],shell=True, stdout=subprocess.PIPE).communicate()
+            subprocess.Popen(["touch {}".format(ssh_path)], shell=True, stdout=subprocess.PIPE).communicate()
 
     @staticmethod
     def configure_wifi():
-        wpa_supplicant_path = Path("/Volumes/boot/wpa_supplicant.conf")
-        if not os.path.isfile(wpa_supplicant_path):
-            subprocess.Popen(["touch {}".format(wpa_supplicant_path)],shell=True, stdout=subprocess.PIPE).communicate()
+        # TODO use yaml https://ubuntu.com/tutorials/how-to-install-ubuntu-on-your-raspberry-pi#3-wifi-or-ethernet
+        logger.debug("MacosBaseBot.configure_wifi")
+        # TODO network config path is wrong
+        network_config_path = Path("/Volumes/system-boot/network-config")
+        if not os.path.isfile(network_config_path):
+            subprocess.Popen([f"touch {network_config_path}".format(network_config_path)], shell=True, stdout=subprocess.PIPE).communicate()
 
         ssid = input("What is the ssid\n")
         wifi_password = input("What is the wifi password\n")
-        wifi_type = input("Enter 1 if your using WPA-PSK\n Enter 2 if your using WPA2-PSK\n")
-        if wifi_type == "1":
-            network_configuration = 'ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\n' \
-                                    'network={\n    ssid=' + '"{}”\n    psk=“{}”\n' \
-                '    key_mgmt=WPA-PSK\n'.format(ssid,wifi_password) + '}'
-
-        else:
-            network_configuration = 'ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\n' \
-                                    'network={\n    ssid=' + '"{}”\n    psk=“{}”\n' \
-                                                             '    proto=RSN\n    key_mgmt=WPA-PSK\n' \
-                                                             '    pairwise=CCMP\n    group=CCMP\n'.format(ssid,wifi_password) + '}'
-
-        with open(wpa_supplicant_path, "w") as writer:
-            writer.write(network_configuration)
+        wifi_dict = {
+            "version": 2,
+            "ethernets": {
+                "eth0": {
+                    "dhcp4": True,
+                    "optional": True
+                }
+            },
+            "wifis": {
+                "wlan0": {
+                    "dhcp4": True,
+                    "optional": True,
+                    "access-points": {
+                        ssid: {
+                            "password": f'{str(wifi_password)}'
+                        }
+                    }
+                }
+            }
+        }
+        with open(network_config_path, 'w') as file:
+            yaml.dump(wifi_dict, file)
 
     def assistant(self):
         logger.debug("MacosBaseBot.assistant")
-        if not self.disk_number():
+
+        if not self.gather_disk_number():
+            # TODO change this to wait for the sd card to be mounted.
             raise Exception("Cant find the sd card's mounted disk number")
+
+        # Generate the disk path
+        self.gather_disk_path()
 
         disk_erased = input("Have you erased the disk yet\n")
         if "y" in disk_erased:
@@ -127,6 +169,7 @@ class MacosBaseBot:
             self.unmount_disk()
             self.install_os()
 
+        self.mount_disk()
         self.enable_ssh()
         self.configure_wifi()
         self.unmount_disk()

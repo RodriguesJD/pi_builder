@@ -1,8 +1,6 @@
 from sys import platform
 import logging
 
-import yaml
-
 from core.raspbian_os_type import RaspianBaseBot
 from core.macos_os_type import MacosBaseBot
 
@@ -24,14 +22,14 @@ logger.addHandler(file_handler)
 logger.addHandler(stream_handler)
 
 
-logger.debug('==========Start=========')
+logger.info('==========Start=========')
 
 if platform == "linux" or platform == "linux2":
     logger.debug("build host is linux")
     RaspianBaseBot().assistant()
 
 elif platform == "darwin":
-    logger.debug("build host is macOS")
+    logger.info("build host is macOS")
     MacosBaseBot().assistant()
 
 else:
