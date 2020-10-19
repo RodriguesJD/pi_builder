@@ -11,3 +11,4 @@ venv
 base_bot.egg-info
 *.log
 .DS_Store
+sample.yaml
